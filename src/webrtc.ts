@@ -110,9 +110,9 @@ export async function initWebRTC() {
 
     callChannel.on('broadcast', { event: 'ice-candidate' }, async (payload: any) => {
         const data = payload.payload;
-        if (data.targetUserId === state.currentUser.id && rtcPeerConnection) {
+        if (data.targetUserId === state.currentUser.id) {
             const candidate = new RTCIceCandidate(data.candidate);
-            if (rtcPeerConnection.remoteDescription) {
+            if (rtcPeerConnection && rtcPeerConnection.remoteDescription) {
                 await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding ICE:", e));
             } else {
                 pendingIceCandidates.push(candidate);
@@ -124,6 +124,7 @@ export async function initWebRTC() {
         const data = payload.payload;
         if (data.targetUserId === state.currentUser.id || data.callerId === state.currentUser.id) {
             document.getElementById('incoming-call-modal')?.classList.add('hidden');
+            pendingIceCandidates = [];
             endVideoCall(false);
         }
     });
@@ -133,6 +134,7 @@ export async function initWebRTC() {
         if (data.targetUserId === state.currentUser.id) {
             stopRingtone();
             document.getElementById('call-status')!.innerText = 'Абонент отклонил вызов';
+            pendingIceCandidates = [];
             setTimeout(() => endVideoCall(false), 2000);
         }
     });
@@ -153,7 +155,8 @@ export async function startVideoCall() {
 async function startCall(isVideo: boolean) {
     await initWebRTC();
     
-    currentCallPeerId = state.activeChatOtherUser.id;
+    const targetUserId = state.activeChatOtherUser.id;
+    currentCallPeerId = targetUserId;
     
     const name = document.getElementById('current-chat-name')?.innerText || 'Абонент';
     const avatar = document.getElementById('chat-header-avatar')?.innerText || 'C';
@@ -244,7 +247,7 @@ async function startCall(isVideo: boolean) {
             if (event.candidate) {
                 callChannel.send({
                     type: 'broadcast', event: 'ice-candidate',
-                    payload: { targetUserId: state.activeChatOtherUser.id, candidate: event.candidate }
+                    payload: { targetUserId: targetUserId, candidate: event.candidate }
                 });
             }
         };
@@ -381,6 +384,11 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
         };
 
         await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        for (const candidate of pendingIceCandidates) {
+            await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding queued ICE:", e));
+        }
+        pendingIceCandidates = [];
+        
         const answer = await rtcPeerConnection.createAnswer();
         await rtcPeerConnection.setLocalDescription(answer);
         
@@ -399,6 +407,7 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
 
 export function endVideoCall(broadcast = true) {
     stopRingtone();
+    pendingIceCandidates = [];
     if (broadcast && currentCallPeerId && callChannel) {
         callChannel.send({
             type: 'broadcast', event: 'call-ended',
