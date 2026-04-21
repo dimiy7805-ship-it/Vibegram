@@ -36,7 +36,7 @@ export async function generateAiImage() {
     try {
         const response = await executeAiWithFallback(async (ai: GoogleGenAI) => {
             return await ai.models.generateContent({
-                model: 'gemini-3.1-flash-image-preview',
+                model: 'gemini-2.5-flash-image',
                 contents: prompt,
                 config: {
                     outputLanguage: "ru"

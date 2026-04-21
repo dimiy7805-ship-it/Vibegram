@@ -216,11 +216,13 @@ async function startCall(isVideo: boolean) {
                 remoteStream!.addTrack(event.track);
             }
             if (isVideo && remoteVideo) {
+                remoteVideo.srcObject = remoteStream;
                 const p = remoteVideo.play();
                 if (p) p.catch(e => console.warn('Error playing remote video:', e));
                 document.getElementById('call-avatar-container')?.classList.add('hidden');
                 remoteVideo.classList.remove('hidden');
             } else if (!isVideo && remoteAudio) {
+                remoteAudio.srcObject = remoteStream;
                 const p = remoteAudio.play();
                 if (p) p.catch(e => console.warn('Error playing remote audio:', e));
             }
@@ -326,11 +328,13 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
                 remoteStream!.addTrack(event.track);
             }
             if (isVideo && remoteVideo) {
+                remoteVideo.srcObject = remoteStream;
                 const p = remoteVideo.play();
                 if (p) p.catch(e => console.warn('Error playing remote video:', e));
                 document.getElementById('call-avatar-container')?.classList.add('hidden');
                 remoteVideo.classList.remove('hidden');
             } else if (!isVideo && remoteAudio) {
+                remoteAudio.srcObject = remoteStream;
                 const p = remoteAudio.play();
                 if (p) p.catch(e => console.warn('Error playing remote audio:', e));
             }
