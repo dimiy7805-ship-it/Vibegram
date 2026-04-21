@@ -34,35 +34,40 @@ export async function generateAiImage() {
     document.body.appendChild(overlay);
 
     try {
-        const hfKey = (import.meta as any).env?.VITE_HF_API_KEY || (process as any).env?.VITE_HF_API_KEY || (process as any).env?.HF_API_KEY;
-        if (!hfKey) {
-            throw new Error("API ключ Hugging Face не найден. Добавьте VITE_HF_API_KEY в GitHub Secrets (или ваш .env файл).");
-        }
+        const response = await executeAiWithFallback(async (ai: GoogleGenAI) => {
+            return await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: prompt,
+                config: {
+                    imageConfig: { aspectRatio: "1:1" }
+                }
+            });
+        });
 
-        const hfResponse = await fetch(
-            "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-3.5-medium",
-            {
-                headers: {
-                    Authorization: `Bearer ${hfKey}`,
-                    "Content-Type": "application/json",
-                },
-                method: "POST",
-                body: JSON.stringify({ inputs: prompt }),
+        let base64EncodeString = '';
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+            if (part.inlineData && part.inlineData.data) {
+                base64EncodeString = part.inlineData.data;
+                break;
             }
-        );
+        }
 
-        if (!hfResponse.ok) {
-            const errText = await hfResponse.text();
-            if (hfResponse.status === 503 && errText.includes('loading')) {
-                throw new Error("Модель загружается на сервер (состояние прогрева). Пожалуйста, подождите примерно минуту и попробуйте снова.");
+        if (!base64EncodeString) {
+            const finishReason = response.candidates?.[0]?.finishReason;
+            if (finishReason === 'SAFETY') {
+                 throw new Error("Ваш запрос заблокирован внутренним фильтром безопасности нейросети. Попробуйте изменить формулировку.");
             }
-            throw new Error(`Ошибка от Hugging Face: ${hfResponse.status} ${errText}`);
+            console.error("AI Generation Response missing image data:", JSON.stringify(response));
+            throw new Error("Не удалось сгенерировать изображение. Возможно, запрос заблокирован фильтром безопасности.");
         }
 
-        const blob = await hfResponse.blob();
-        if (!blob || !blob.type.startsWith('image/')) {
-            throw new Error("Сервер вернул некорректный формат (ожидалась картинка).");
+        const byteCharacters = atob(base64EncodeString);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {type: 'image/jpeg'});
         
         // Create a File object
         const file = new File([blob], `ai_generated_${Date.now()}.jpg`, { type: 'image/jpeg' });
