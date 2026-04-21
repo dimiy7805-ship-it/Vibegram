@@ -147,7 +147,17 @@ async function startCall(isVideo: boolean) {
     document.getElementById('video-call-modal')!.classList.remove('hidden');
     
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+        } catch (e) {
+            console.warn('Failed to get video, trying audio only', e);
+            if (isVideo) {
+                isVideo = false;
+                localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            } else {
+                throw e;
+            }
+        }
         const localVideo = document.getElementById('local-video') as HTMLVideoElement;
         const localVideoContainer = document.getElementById('local-video-container');
         const callVideoBtn = document.getElementById('call-video-btn');
@@ -258,7 +268,17 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
     document.getElementById('video-call-modal')!.classList.remove('hidden');
     
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+        } catch (e) {
+            console.warn('Failed to get video, trying audio only', e);
+            if (isVideo) {
+                isVideo = false;
+                localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            } else {
+                throw e;
+            }
+        }
         const localVideo = document.getElementById('local-video') as HTMLVideoElement;
         const localVideoContainer = document.getElementById('local-video-container');
         const callVideoBtn = document.getElementById('call-video-btn');

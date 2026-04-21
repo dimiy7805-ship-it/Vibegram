@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 
 const API_KEYS = (process.env.GEMINI_API_KEY || "")
     .split(',')
-    .map(k => k.trim())
+    .map(k => k.replace(/[^a-zA-Z0-9_\-]/g, '').trim())
     .filter(Boolean);
 
 let currentKeyIndex = 0;
