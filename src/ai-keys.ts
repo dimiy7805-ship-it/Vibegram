@@ -12,10 +12,13 @@ const EXHAUSTED_COOLDOWN = 10 * 60 * 1000; // 10 minutes
 
 function isQuotaError(error: any) {
     if (!error) return false;
-    // Handle both property status 429 and error messages typical for quota/rate limiting
+    // Rotate on 429 (Quota/Rate limit) OR 401/403 (Invalid key/unauthorized)
     const msg = error.message?.toLowerCase() || '';
     const status = error.status || error.code;
-    return status === 429 || msg.includes('429') || msg.includes('quota') || msg.includes('exhausted') || msg.includes('rate limit');
+    return status === 429 || status === 401 || status === 403 || 
+           msg.includes('429') || msg.includes('401') || msg.includes('403') || 
+           msg.includes('quota') || msg.includes('exhausted') || 
+           msg.includes('rate limit') || msg.includes('invalid authentication credentials');
 }
 
 export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Promise<T>): Promise<T> {

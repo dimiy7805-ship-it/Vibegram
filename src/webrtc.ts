@@ -33,7 +33,17 @@ function stopRingtone() {
 const rtcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
     ]
 };
 
@@ -177,9 +187,17 @@ async function startCall(isVideo: boolean) {
         rtcPeerConnection.ontrack = event => {
             const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
             if (isVideo && remoteVideo) {
-                if (remoteVideo.srcObject !== stream) remoteVideo.srcObject = stream;
+                if (remoteVideo.srcObject !== stream) {
+                    remoteVideo.srcObject = stream;
+                    const p = remoteVideo.play();
+                    if (p) p.catch(e => console.warn('Error playing remote video:', e));
+                }
             } else if (!isVideo && remoteAudio) {
-                if (remoteAudio.srcObject !== stream) remoteAudio.srcObject = stream;
+                if (remoteAudio.srcObject !== stream) {
+                    remoteAudio.srcObject = stream;
+                    const p = remoteAudio.play();
+                    if (p) p.catch(e => console.warn('Error playing remote audio:', e));
+                }
             }
             stream.getTracks().forEach(track => {
                 if (!remoteStream!.getTracks().find(t => t.id === track.id)) {
@@ -201,6 +219,13 @@ async function startCall(isVideo: boolean) {
             }
         };
         
+        rtcPeerConnection.oniceconnectionstatechange = () => {
+             console.log('ICE Connection state:', rtcPeerConnection?.iceConnectionState);
+             if (rtcPeerConnection?.iceConnectionState === 'failed' || rtcPeerConnection?.iceConnectionState === 'disconnected') {
+                 endVideoCall(false);
+             }
+        };
+
         const offer = await rtcPeerConnection.createOffer();
         await rtcPeerConnection.setLocalDescription(offer);
         
@@ -273,9 +298,17 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
         rtcPeerConnection.ontrack = event => {
             const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
             if (isVideo && remoteVideo) {
-                if (remoteVideo.srcObject !== stream) remoteVideo.srcObject = stream;
+                if (remoteVideo.srcObject !== stream) {
+                    remoteVideo.srcObject = stream;
+                    const p = remoteVideo.play();
+                    if (p) p.catch(e => console.warn('Error playing remote video:', e));
+                }
             } else if (!isVideo && remoteAudio) {
-                if (remoteAudio.srcObject !== stream) remoteAudio.srcObject = stream;
+                if (remoteAudio.srcObject !== stream) {
+                    remoteAudio.srcObject = stream;
+                    const p = remoteAudio.play();
+                    if (p) p.catch(e => console.warn('Error playing remote audio:', e));
+                }
             }
             stream.getTracks().forEach(track => {
                 if (!remoteStream!.getTracks().find(t => t.id === track.id)) {
@@ -297,6 +330,13 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
             }
         };
         
+        rtcPeerConnection.oniceconnectionstatechange = () => {
+             console.log('ICE Connection state:', rtcPeerConnection?.iceConnectionState);
+             if (rtcPeerConnection?.iceConnectionState === 'failed' || rtcPeerConnection?.iceConnectionState === 'disconnected') {
+                 endVideoCall(false);
+             }
+        };
+
         await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await rtcPeerConnection.createAnswer();
         await rtcPeerConnection.setLocalDescription(answer);
