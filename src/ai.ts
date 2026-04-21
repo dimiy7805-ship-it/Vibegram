@@ -36,16 +36,10 @@ export async function generateAiImage() {
     try {
         const response = await executeAiWithFallback(async (ai: GoogleGenAI) => {
             return await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [{ text: prompt }] },
+                model: 'gemini-3.1-flash-image-preview',
+                contents: prompt,
                 config: {
-                    imageConfig: { aspectRatio: "1:1" },
-                    safetySettings: [
-                        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-                    ]
+                    outputLanguage: "ru"
                 }
             });
         });

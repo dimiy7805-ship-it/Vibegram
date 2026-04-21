@@ -30,6 +30,8 @@ export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Prom
     const now = Date.now();
     let attempts = 0;
     
+    let lastError: any = null;
+    
     while (attempts < API_KEYS.length) {
         const apiKey = API_KEYS[currentKeyIndex];
         const exhaustedAt = keyStatus.get(apiKey) || 0;
@@ -45,8 +47,9 @@ export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Prom
         try {
             return await action(ai);
         } catch (error: any) {
+            lastError = error;
             if (isQuotaError(error)) {
-                console.warn(`Key at index ${currentKeyIndex} hit quota limit. Switching key...`);
+                console.warn(`Key at index ${currentKeyIndex} hit quota/auth error. Switching key...`, error.message);
                 keyStatus.set(apiKey, Date.now());
                 currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
                 attempts++;
@@ -69,6 +72,11 @@ export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Prom
         }
     }
     
-    customToast('Все свободные слоты заняты. Попробуйте позже.');
+    console.error('All keys exhausted!', lastError);
+    if (lastError?.message) {
+        customToast(`Ошибка API: ${lastError.message.substring(0, 50)}...`);
+    } else {
+        customToast('Все свободные слоты запяты. Попробуйте позже.');
+    }
     throw new Error('All API keys exhausted');
 }

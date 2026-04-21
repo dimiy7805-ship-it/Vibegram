@@ -47,6 +47,8 @@ const rtcConfig = {
     ]
 };
 
+let pendingIceCandidates: any[] = [];
+
 export async function initWebRTC() {
     if (callChannel) return;
     callChannel = supabase.channel('video-calls');
@@ -56,8 +58,12 @@ export async function initWebRTC() {
         if (data.targetUserId === state.currentUser.id) {
             playRingtone();
             const modal = document.getElementById('incoming-call-modal')!;
-            document.getElementById('incoming-call-name')!.innerText = data.callerName;
-            document.getElementById('incoming-call-avatar')!.innerText = data.callerName[0].toUpperCase();
+            if (document.getElementById('incoming-call-name')) {
+                document.getElementById('incoming-call-name')!.innerText = data.callerName;
+            }
+            if (document.getElementById('incoming-call-avatar')) {
+                document.getElementById('incoming-call-avatar')!.innerText = data.callerName[0].toUpperCase();
+            }
             modal.classList.remove('hidden');
             
             const acceptBtn = document.getElementById('accept-call-btn')!;
@@ -93,13 +99,24 @@ export async function initWebRTC() {
             stopRingtone();
             await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
             document.getElementById('call-status')!.innerText = 'Соединение установлено';
+            
+            // Process any queued ICE candidates
+            for (const candidate of pendingIceCandidates) {
+                await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding queued ICE:", e));
+            }
+            pendingIceCandidates = [];
         }
     });
 
     callChannel.on('broadcast', { event: 'ice-candidate' }, async (payload: any) => {
         const data = payload.payload;
         if (data.targetUserId === state.currentUser.id && rtcPeerConnection) {
-            await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            const candidate = new RTCIceCandidate(data.candidate);
+            if (rtcPeerConnection.remoteDescription) {
+                await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding ICE:", e));
+            } else {
+                pendingIceCandidates.push(candidate);
+            }
         }
     });
 
@@ -195,28 +212,17 @@ async function startCall(isVideo: boolean) {
         localStream.getTracks().forEach(track => rtcPeerConnection!.addTrack(track, localStream!));
         
         rtcPeerConnection.ontrack = event => {
-            const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
-            if (isVideo && remoteVideo) {
-                if (remoteVideo.srcObject !== stream) {
-                    remoteVideo.srcObject = stream;
-                    const p = remoteVideo.play();
-                    if (p) p.catch(e => console.warn('Error playing remote video:', e));
-                }
-            } else if (!isVideo && remoteAudio) {
-                if (remoteAudio.srcObject !== stream) {
-                    remoteAudio.srcObject = stream;
-                    const p = remoteAudio.play();
-                    if (p) p.catch(e => console.warn('Error playing remote audio:', e));
-                }
+            if (!remoteStream!.getTracks().find(t => t.id === event.track.id)) {
+                remoteStream!.addTrack(event.track);
             }
-            stream.getTracks().forEach(track => {
-                if (!remoteStream!.getTracks().find(t => t.id === track.id)) {
-                    remoteStream!.addTrack(track);
-                }
-            });
-            if (isVideo) {
+            if (isVideo && remoteVideo) {
+                const p = remoteVideo.play();
+                if (p) p.catch(e => console.warn('Error playing remote video:', e));
                 document.getElementById('call-avatar-container')?.classList.add('hidden');
-                if (remoteVideo) remoteVideo.classList.remove('hidden');
+                remoteVideo.classList.remove('hidden');
+            } else if (!isVideo && remoteAudio) {
+                const p = remoteAudio.play();
+                if (p) p.catch(e => console.warn('Error playing remote audio:', e));
             }
         };
         
@@ -316,28 +322,17 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
         localStream.getTracks().forEach(track => rtcPeerConnection!.addTrack(track, localStream!));
         
         rtcPeerConnection.ontrack = event => {
-            const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
-            if (isVideo && remoteVideo) {
-                if (remoteVideo.srcObject !== stream) {
-                    remoteVideo.srcObject = stream;
-                    const p = remoteVideo.play();
-                    if (p) p.catch(e => console.warn('Error playing remote video:', e));
-                }
-            } else if (!isVideo && remoteAudio) {
-                if (remoteAudio.srcObject !== stream) {
-                    remoteAudio.srcObject = stream;
-                    const p = remoteAudio.play();
-                    if (p) p.catch(e => console.warn('Error playing remote audio:', e));
-                }
+            if (!remoteStream!.getTracks().find(t => t.id === event.track.id)) {
+                remoteStream!.addTrack(event.track);
             }
-            stream.getTracks().forEach(track => {
-                if (!remoteStream!.getTracks().find(t => t.id === track.id)) {
-                    remoteStream!.addTrack(track);
-                }
-            });
-            if (isVideo) {
+            if (isVideo && remoteVideo) {
+                const p = remoteVideo.play();
+                if (p) p.catch(e => console.warn('Error playing remote video:', e));
                 document.getElementById('call-avatar-container')?.classList.add('hidden');
-                if (remoteVideo) remoteVideo.classList.remove('hidden');
+                remoteVideo.classList.remove('hidden');
+            } else if (!isVideo && remoteAudio) {
+                const p = remoteAudio.play();
+                if (p) p.catch(e => console.warn('Error playing remote audio:', e));
             }
         };
         
