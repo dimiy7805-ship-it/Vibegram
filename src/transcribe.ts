@@ -31,6 +31,10 @@ export async function transcribeMedia(url: string, messageId: string) {
         if (!mimeType) {
             mimeType = url.includes('.mp4') ? 'video/mp4' : 'audio/webm';
         }
+        // Strip codec info that Gemini rejects (e.g. "audio/webm; codecs=opus" -> "audio/webm")
+        if (mimeType.includes(';')) {
+            mimeType = mimeType.split(';')[0];
+        }
 
         // Call Gemini
         const result = await executeAiWithFallback(async (ai: GoogleGenAI) => {
@@ -75,12 +79,14 @@ export async function transcribeMedia(url: string, messageId: string) {
         console.error('Transcription error:', err);
         
         if (!err.message?.includes('All API keys exhausted')) {
-            let errorMessage = 'Ошибка расшифровки';
+            let errorMessage = `Ошибка расшифровки: ${err.message?.substring(0, 50)}`;
             const errText = err.message?.toLowerCase() || '';
             if (errText.includes('quota') || errText.includes('429') || errText.includes('exhausted') || errText.includes('rate limit')) {
                 errorMessage = '⚡ Превышен лимит запросов. Попробуйте позже.';
             } else if (errText.includes('safety') || errText.includes('blocked') || errText.includes('filter')) {
                 errorMessage = '🛡️ Расшифровка заблокирована фильтром безопасности.';
+            } else if (errText.includes('fetch')) {
+                errorMessage = 'Не удалось загрузить файл для расшифровки';
             }
             customToast(errorMessage);
         }
