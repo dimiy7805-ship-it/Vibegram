@@ -21,6 +21,13 @@ function isQuotaError(error: any) {
            msg.includes('rate limit') || msg.includes('invalid authentication credentials');
 }
 
+function isTransientError(error: any) {
+    if (!error) return false;
+    const msg = error.message?.toLowerCase() || '';
+    const status = error.status || error.code;
+    return status === 500 || status === 503 || status === 504 || msg.includes('503') || msg.includes('500') || msg.includes('504') || msg.includes('overloaded');
+}
+
 export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
     if (API_KEYS.length === 0) {
         customToast('Ключи API не настроены. Добавьте GEMINI_API_KEY в GitHub Secrets.');
@@ -29,6 +36,7 @@ export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Prom
 
     const now = Date.now();
     let attempts = 0;
+    let transientRetries = 0;
     
     let lastError: any = null;
     
@@ -48,6 +56,15 @@ export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Prom
             return await action(ai);
         } catch (error: any) {
             lastError = error;
+            
+            if (isTransientError(error) && transientRetries < 3) {
+                 console.warn('Model overloaded (503), retrying in 2 seconds...', error.message);
+                 transientRetries++;
+                 customToast('Сервер перегружен, ожидание...');
+                 await new Promise(r => setTimeout(r, 2000));
+                 continue; // Retry same key
+            }
+            
             if (isQuotaError(error)) {
                 console.warn(`Key at index ${currentKeyIndex} hit quota/auth error. Switching key...`, error.message);
                 keyStatus.set(apiKey, Date.now());

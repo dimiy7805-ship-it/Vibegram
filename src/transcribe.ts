@@ -87,6 +87,8 @@ export async function transcribeMedia(url: string, messageId: string) {
                 errorMessage = '🛡️ Расшифровка заблокирована фильтром безопасности.';
             } else if (errText.includes('fetch')) {
                 errorMessage = 'Не удалось загрузить файл для расшифровки';
+            } else if (errText.includes('503') || errText.includes('overloaded')) {
+                errorMessage = '🐌 Сервер нейросети перегружен. Попробуйте через пару минут.';
             }
             customToast(errorMessage);
         }
