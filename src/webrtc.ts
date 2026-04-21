@@ -212,20 +212,32 @@ async function startCall(isVideo: boolean) {
         localStream.getTracks().forEach(track => rtcPeerConnection!.addTrack(track, localStream!));
         
         rtcPeerConnection.ontrack = event => {
-            if (!remoteStream!.getTracks().find(t => t.id === event.track.id)) {
-                remoteStream!.addTrack(event.track);
+            let stream = event.streams?.[0];
+            if (!stream) {
+                 if (!remoteStream!.getTracks().find(t => t.id === event.track.id)) {
+                     remoteStream!.addTrack(event.track);
+                 }
+                 stream = remoteStream!;
             }
-            if (isVideo && remoteVideo) {
-                remoteVideo.srcObject = remoteStream;
-                const p = remoteVideo.play();
-                if (p) p.catch(e => console.warn('Error playing remote video:', e));
-                document.getElementById('call-avatar-container')?.classList.add('hidden');
-                remoteVideo.classList.remove('hidden');
-            } else if (!isVideo && remoteAudio) {
-                remoteAudio.srcObject = remoteStream;
-                const p = remoteAudio.play();
-                if (p) p.catch(e => console.warn('Error playing remote audio:', e));
+
+            const attemptPlay = () => {
+                if (isVideo && remoteVideo) {
+                    remoteVideo.srcObject = stream;
+                    const p = remoteVideo.play();
+                    if (p) p.catch(e => console.warn('Error playing remote video:', e));
+                    document.getElementById('call-avatar-container')?.classList.add('hidden');
+                    remoteVideo.classList.remove('hidden');
+                } else if (!isVideo && remoteAudio) {
+                    remoteAudio.srcObject = stream;
+                    const p = remoteAudio.play();
+                    if (p) p.catch(e => console.warn('Error playing remote audio:', e));
+                }
+            };
+            
+            if (event.track.muted) {
+                event.track.onunmute = attemptPlay;
             }
+            attemptPlay();
         };
         
         rtcPeerConnection.onicecandidate = event => {
@@ -324,20 +336,32 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
         localStream.getTracks().forEach(track => rtcPeerConnection!.addTrack(track, localStream!));
         
         rtcPeerConnection.ontrack = event => {
-            if (!remoteStream!.getTracks().find(t => t.id === event.track.id)) {
-                remoteStream!.addTrack(event.track);
+            let stream = event.streams?.[0];
+            if (!stream) {
+                 if (!remoteStream!.getTracks().find(t => t.id === event.track.id)) {
+                     remoteStream!.addTrack(event.track);
+                 }
+                 stream = remoteStream!;
             }
-            if (isVideo && remoteVideo) {
-                remoteVideo.srcObject = remoteStream;
-                const p = remoteVideo.play();
-                if (p) p.catch(e => console.warn('Error playing remote video:', e));
-                document.getElementById('call-avatar-container')?.classList.add('hidden');
-                remoteVideo.classList.remove('hidden');
-            } else if (!isVideo && remoteAudio) {
-                remoteAudio.srcObject = remoteStream;
-                const p = remoteAudio.play();
-                if (p) p.catch(e => console.warn('Error playing remote audio:', e));
+
+            const attemptPlay = () => {
+                if (isVideo && remoteVideo) {
+                    remoteVideo.srcObject = stream;
+                    const p = remoteVideo.play();
+                    if (p) p.catch(e => console.warn('Error playing remote video:', e));
+                    document.getElementById('call-avatar-container')?.classList.add('hidden');
+                    remoteVideo.classList.remove('hidden');
+                } else if (!isVideo && remoteAudio) {
+                    remoteAudio.srcObject = stream;
+                    const p = remoteAudio.play();
+                    if (p) p.catch(e => console.warn('Error playing remote audio:', e));
+                }
+            };
+            
+            if (event.track.muted) {
+                event.track.onunmute = attemptPlay;
             }
+            attemptPlay();
         };
         
         rtcPeerConnection.onicecandidate = event => {

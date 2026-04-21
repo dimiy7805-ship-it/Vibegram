@@ -39,7 +39,7 @@ export async function generateAiImage() {
                 model: 'gemini-2.5-flash-image',
                 contents: prompt,
                 config: {
-                    outputLanguage: "ru"
+                    imageConfig: { aspectRatio: "1:1" }
                 }
             });
         });
