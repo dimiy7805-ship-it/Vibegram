@@ -30,25 +30,17 @@ function stopRingtone() {
     }
 }
 
-const rtcConfig = {
+const rtcConfig: RTCConfiguration = {
+    bundlePolicy: 'max-bundle',
     iceServers: [
         { urls: [
             'stun:stun.l.google.com:19302',
-            'stun:stun1.l.google.com:19302',
-            'stun:stun2.l.google.com:19302',
-            'stun:stun3.l.google.com:19302',
-            'stun:stun4.l.google.com:19302',
-            'stun:openrelay.metered.ca:80'
+            'stun:stun.cloudflare.com:3478'
         ]},
-        {
-            urls: [
-                'turn:openrelay.metered.ca:80',
-                'turn:openrelay.metered.ca:443',
-                'turn:openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        }
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:turn.bistri.com:80', username: 'homeo', credential: 'homeo' }
     ]
 };
 
@@ -123,11 +115,11 @@ export async function initWebRTC() {
             await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
             document.getElementById('call-status')!.innerText = 'Соединение установлено';
             
-            // Process any queued ICE candidates
-            for (const candidate of pendingIceCandidates) {
+            // Process any queued ICE candidates safely against race conditions
+            while (pendingIceCandidates.length > 0) {
+                const candidate = pendingIceCandidates.shift();
                 await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding queued ICE:", e));
             }
-            pendingIceCandidates = [];
         }
     });
 
@@ -421,10 +413,10 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
         };
 
         await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        for (const candidate of pendingIceCandidates) {
+        while (pendingIceCandidates.length > 0) {
+            const candidate = pendingIceCandidates.shift();
             await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding queued ICE:", e));
         }
-        pendingIceCandidates = [];
         
         const answer = await rtcPeerConnection.createAnswer();
         await rtcPeerConnection.setLocalDescription(answer);
