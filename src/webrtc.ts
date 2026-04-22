@@ -53,6 +53,24 @@ const rtcConfig = {
 };
 
 let pendingIceCandidates: any[] = [];
+let iceCandidateQueue: any[] = [];
+let iceCandidateTimer: any = null;
+
+function queueIceCandidate(targetId: string, candidate: any) {
+    iceCandidateQueue.push(candidate);
+    if (!iceCandidateTimer) {
+        iceCandidateTimer = setTimeout(() => {
+            if (iceCandidateQueue.length > 0) {
+                callChannel.send({
+                    type: 'broadcast', event: 'ice-candidates-batch',
+                    payload: { targetUserId: targetId, candidates: [...iceCandidateQueue] }
+                });
+                iceCandidateQueue = [];
+            }
+            iceCandidateTimer = null;
+        }, 400); // 400ms accumulates STUN/TURN candidates to prevent 10msg/sec drop
+    }
+}
 
 export async function initWebRTC() {
     if (callChannel) return;
@@ -125,11 +143,28 @@ export async function initWebRTC() {
         }
     });
 
+    callChannel.on('broadcast', { event: 'ice-candidates-batch' }, async (payload: any) => {
+        const data = payload.payload;
+        if (data.targetUserId === state.currentUser.id) {
+            for (const cand of data.candidates) {
+                const candidate = new RTCIceCandidate(cand);
+                if (rtcPeerConnection && rtcPeerConnection.remoteDescription) {
+                    await rtcPeerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding queued batch ICE:", e));
+                } else {
+                    pendingIceCandidates.push(candidate);
+                }
+            }
+        }
+    });
+
     callChannel.on('broadcast', { event: 'call-ended' }, (payload: any) => {
         const data = payload.payload;
         if (data.targetUserId === state.currentUser.id || data.callerId === state.currentUser.id) {
             document.getElementById('incoming-call-modal')?.classList.add('hidden');
             pendingIceCandidates = [];
+            if (iceCandidateTimer) clearTimeout(iceCandidateTimer);
+            iceCandidateTimer = null;
+            iceCandidateQueue = [];
             endVideoCall(false);
         }
     });
@@ -140,6 +175,9 @@ export async function initWebRTC() {
             stopRingtone();
             document.getElementById('call-status')!.innerText = 'Абонент отклонил вызов';
             pendingIceCandidates = [];
+            if (iceCandidateTimer) clearTimeout(iceCandidateTimer);
+            iceCandidateTimer = null;
+            iceCandidateQueue = [];
             setTimeout(() => endVideoCall(false), 2000);
         }
     });
@@ -250,10 +288,7 @@ async function startCall(isVideo: boolean) {
         
         rtcPeerConnection.onicecandidate = event => {
             if (event.candidate) {
-                callChannel.send({
-                    type: 'broadcast', event: 'ice-candidate',
-                    payload: { targetUserId: targetUserId, candidate: event.candidate }
-                });
+                queueIceCandidate(targetUserId, event.candidate);
             }
         };
         
@@ -374,10 +409,7 @@ export async function answerCall(callerId: string, offer: any, callerName: strin
         
         rtcPeerConnection.onicecandidate = event => {
             if (event.candidate) {
-                callChannel.send({
-                    type: 'broadcast', event: 'ice-candidate',
-                    payload: { targetUserId: callerId, candidate: event.candidate }
-                });
+                queueIceCandidate(callerId, event.candidate);
             }
         };
         
