@@ -35,7 +35,7 @@ export async function transcribeMedia(url: string, messageId: string) {
         }
 
         // Call Backend API instead of direct call
-        const apiResponse = await fetch('/api/ai/transcribe', {
+        const apiResponse = await fetch('/backend/ai/transcribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ base64data, mimeType })

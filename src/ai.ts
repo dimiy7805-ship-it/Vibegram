@@ -32,7 +32,7 @@ export async function generateAiImage() {
     document.body.appendChild(overlay);
 
     try {
-        const apiResponse = await fetch('/api/ai/image', {
+        const apiResponse = await fetch('/backend/ai/image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt })

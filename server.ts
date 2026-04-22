@@ -7,6 +7,18 @@ import { GoogleGenAI } from '@google/genai';
 const app = express();
 const PORT = 3000;
 
+app.use((req, res, next) => {
+  console.log(`[${req.method}] ${req.url} - API Keys loaded: ${API_KEYS.length}, env length: ${process.env.GEMINI_API_KEY?.length || 0}`);
+  next();
+});
+
+app.get('/api/test-key', (req, res) => {
+  res.json({
+    keyLength: process.env.GEMINI_API_KEY?.length || 0,
+    apiKeysLength: API_KEYS.length
+  });
+});
+
 app.use(express.json({ limit: '50mb' }));
 
 // Key management logic for AI Fallback on the server
@@ -97,7 +109,7 @@ async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Promise<T>)
     throw lastError || new Error('All API keys exhausted');
 }
 
-app.post('/api/ai/transcribe', async (req, res) => {
+app.post('/backend/ai/transcribe', async (req, res) => {
     try {
         const { base64data, mimeType } = req.body;
         
@@ -128,7 +140,7 @@ app.post('/api/ai/transcribe', async (req, res) => {
     }
 });
 
-app.post('/api/ai/image', async (req, res) => {
+app.post('/backend/ai/image', async (req, res) => {
     try {
         const { prompt } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
