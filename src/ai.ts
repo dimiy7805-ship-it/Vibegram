@@ -1,5 +1,7 @@
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { state } from './supabase';
 import { renderMediaModal } from './messages-media';
+import { executeAiWithFallback } from './ai-keys';
 import { customAlert } from './utils';
 
 export async function generateAiImage() {
@@ -32,25 +34,31 @@ export async function generateAiImage() {
     document.body.appendChild(overlay);
 
     try {
-        const apiResponse = await fetch('/backend/ai/image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt })
+        const response = await executeAiWithFallback(async (ai: GoogleGenAI) => {
+            return await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: prompt,
+                config: {
+                    imageConfig: { aspectRatio: "1:1" }
+                }
+            });
         });
 
-        if (!apiResponse.ok) {
-            const err = await apiResponse.json().catch(() => ({}));
-            if (err.error === 'SAFETY') {
-                 throw new Error("Ваш запрос заблокирован внутренним фильтром безопасности нейросети. Попробуйте изменить формулировку.");
+        let base64EncodeString = '';
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+            if (part.inlineData && part.inlineData.data) {
+                base64EncodeString = part.inlineData.data;
+                break;
             }
-            throw new Error(err.error || `HTTP error ${apiResponse.status}`);
         }
 
-        const data = await apiResponse.json();
-        const base64EncodeString = data.base64;
-        
         if (!base64EncodeString) {
-             throw new Error("Не удалось сгенерировать изображение. Возможно, запрос заблокирован фильтром безопасности.");
+            const finishReason = response.candidates?.[0]?.finishReason;
+            if (finishReason === 'SAFETY') {
+                 throw new Error("Ваш запрос заблокирован внутренним фильтром безопасности нейросети. Попробуйте изменить формулировку.");
+            }
+            console.error("AI Generation Response missing image data:", JSON.stringify(response));
+            throw new Error("Не удалось сгенерировать изображение. Возможно, запрос заблокирован фильтром безопасности.");
         }
 
         const byteCharacters = atob(base64EncodeString);
