@@ -50,7 +50,10 @@ export async function executeAiWithFallback<T>(action: (ai: GoogleGenAI) => Prom
             continue;
         }
 
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ 
+            apiKey,
+            httpOptions: { baseUrl: window.location.origin + '/google-api' }
+        });
         
         try {
             return await action(ai);
