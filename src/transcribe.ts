@@ -1,7 +1,5 @@
 import { supabase } from './supabase';
 import { customToast } from './utils';
-import { GoogleGenAI } from '@google/genai';
-import { executeAiWithFallback } from './ai-keys';
 
 export async function transcribeMedia(url: string, messageId: string) {
     try {
@@ -36,23 +34,20 @@ export async function transcribeMedia(url: string, messageId: string) {
             mimeType = mimeType.split(';')[0];
         }
 
-        // Call Gemini
-        const result = await executeAiWithFallback(async (ai: GoogleGenAI) => {
-            return await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: [
-                    {
-                        role: 'user',
-                        parts: [
-                            { text: 'Transcribe this audio/video. Return only the transcription text in the language spoken. If there is no speech, return an empty string.' },
-                            { inlineData: { data: base64data, mimeType } }
-                        ]
-                    }
-                ]
-            });
+        // Call Backend API instead of direct call
+        const apiResponse = await fetch('/api/ai/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64data, mimeType })
         });
-
-        const transcription = result.text?.trim() || 'Нет речи';
+        
+        if (!apiResponse.ok) {
+            const errorData = await apiResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP error ${apiResponse.status}`);
+        }
+        
+        const result = await apiResponse.json();
+        const transcription = result.text || 'Нет речи';
 
         // Save transcription to message
         const { data: msg, error: fetchError } = await supabase
